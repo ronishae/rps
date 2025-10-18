@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer RPS Simulator</title>
+    <!-- Linking to the external CSS file -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Rock, Paper, Scissors</h1>
+
+    <!-- Connection Panel -->
+    <div id="connection-panel">
+        <input type="text" id="room-id-input" placeholder="Enter Room ID (e.g., game123)">
+        <button id="join-btn">Join / Create Game</button>
+    </div>
+
+    <!-- Game Status and Player Info -->
+    <div id="game-status" class="status-box hidden">
+        <p>Room: <strong id="room-display">...</strong></p>
+        <p>You are: <strong id="player-role">...</strong></p>
+        <p id="match-status">Waiting for opponent to connect...</p>
+    </div>
+
+    <!-- Choices Display -->
+    <div class="choices-display hidden" id="game-area">
+        <div class="player-move">
+            <div class="move-label">Your Move:</div>
+            <span id="player-choice-text">?</span>
+        </div>
+        <div class="vs">vs</div>
+        <div class="opponent-move">
+            <div class="move-label">Opponent's Move:</div>
+            <span id="computer-choice-text">?</span>
+        </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="buttons hidden" id="action-buttons">
+        <button data-choice="rock" class="rock">Rock</button>
+        <button data-choice="paper" class="paper">Paper</button>
+        <button data-choice="scissors" class="scissors">Scissors</button>
+    </div>
+
+    <!-- Result Message -->
+    <div id="result-message" class="hidden">Click a button to play a round!</div>
+</div>
+
+<!-- Firebase Imports and Initialization -->
+<script type="module">
+    // --- NEW: Import configuration from the private file ---
+    import { APP_ID, FIREBASE_CONFIG } from './config.js';
+    
+    // Firebase imports (Required for database access)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Use the imported configuration variables
+    const appId = APP_ID;
+    const firebaseConfig = FIREBASE_CONFIG; 
+
+    // Initialize Firebase and pass services to global scope for script.js
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    window.db = db;
+    window.auth = auth;
+    window.appId = appId;
+    window.onSnapshot = onSnapshot;
+    window.setDoc = setDoc;
+    window.doc = doc;
+    
+    // Auth setup: Automatically signs in the user anonymously if not already signed in.
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            signInAnonymously(auth).catch(error => {
+                console.error("Firebase Anonymous Auth Error:", error);
+            });
+        }
+    });
+</script>
+
+<!-- Linking to the external JavaScript file -->
+<script src="script.js"></script>
+
+</body>
+</html>
