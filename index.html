@@ -6,6 +6,12 @@
     <title>Multiplayer RPS Simulator</title>
     <!-- Linking to the external CSS file -->
     <link rel="stylesheet" href="styles.css">
+
+    <!-- 1. Firebase SDK Imports (Required in the head to load libraries) -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-check.js"></script>
 </head>
 <body>
 
@@ -49,41 +55,8 @@
     <div id="result-message">Connect to a room to play!</div>
 </div>
 
-<!-- Firebase Imports and Initialization -->
-<script type="module">
-    // --- NEW: Import configuration from the private file ---
-    import { APP_ID, FIREBASE_CONFIG } from './config.js';
-    
-    // Firebase imports (Required for database access)
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // Use the imported configuration variables
-    const appId = APP_ID;
-    const firebaseConfig = FIREBASE_CONFIG; 
-
-    // Initialize Firebase and pass services to global scope for script.js
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-
-    window.db = db;
-    window.auth = auth;
-    window.appId = appId;
-    window.onSnapshot = onSnapshot;
-    window.setDoc = setDoc;
-    window.doc = doc;
-    
-    // Auth setup: Automatically signs in the user anonymously if not already signed in.
-    onAuthStateChanged(auth, (user) => {
-        if (!user) {
-            signInAnonymously(auth).catch(error => {
-                console.error("Firebase Anonymous Auth Error:", error);
-            });
-        }
-    });
-</script>
+<!-- Firebase Initialization and Service Exposure -->
+<script type="module" src="./firebase-init.js"></script>
 
 <!-- Linking to the external JavaScript file -->
 <script src="script.js"></script>
