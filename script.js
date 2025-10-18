@@ -1,97 +1,81 @@
 // --- MULTIPLAYER GAME LOGIC ---
 
 // 1. Initial State and Constants
-const CHOICES = {
-    'rock': 'Rock',
-    'paper': 'Paper',
-    'scissors': 'Scissors'
-};
-const choiceKeys = Object.keys(CHOICES);
-
 // Game State Variables
 let gameRoomId = null;
 let playerNumber = null; // 1 or 2
 let roomRef = null; // Firestore document reference
 
-// 2. DOM Elements (Wait for the document to fully load before referencing them)
-document.addEventListener('DOMContentLoaded', () => {
-    // 2.1 UI Elements
-    const connectionPanelEl = document.getElementById('connection-panel');
-    const roomIdInputEl = document.getElementById('room-id-input');
-    const joinBtnEl = document.getElementById('join-btn');
-    const gameStatusEl = document.getElementById('game-status');
-    const roomDisplayEl = document.getElementById('room-display');
-    const playerRoleEl = document.getElementById('player-role');
-    const matchStatusEl = document.getElementById('match-status');
-    const gameAreaEl = document.getElementById('game-area');
-    const actionButtonsEl = document.getElementById('action-buttons');
-    const playerChoiceTextEl = document.getElementById('player-choice-text');
-    const computerChoiceTextEl = document.getElementById('computer-choice-text');
-    const resultMessageEl = document.getElementById('result-message');
-    const buttons = document.querySelectorAll('.buttons button');
-    
+// 2. DOM Elements (References will be set inside DOMContentLoaded)
+let DOM = {};
+
+document.addEventListener("DOMContentLoaded", () => {
+    // 2.1 UI Element Initialization (Moved to a single DOM object for clean access)
+    DOM.connectionPanelEl = document.getElementById("connection-panel");
+    DOM.roomIdInputEl = document.getElementById("room-id-input");
+    DOM.joinBtnEl = document.getElementById("join-btn");
+    DOM.gameStatusEl = document.getElementById("game-status");
+    DOM.roomDisplayEl = document.getElementById("room-display");
+    DOM.playerRoleEl = document.getElementById("player-role");
+    DOM.matchStatusEl = document.getElementById("match-status");
+    DOM.gameAreaEl = document.getElementById("game-area");
+    DOM.actionButtonsEl = document.getElementById("action-buttons");
+    DOM.playerChoiceTextEl = document.getElementById("player-choice-text");
+    DOM.opponentChoiceTextEl = document.getElementById("computer-choice-text");
+    DOM.resultMessageEl = document.getElementById("result-message");
+    DOM.buttons = document.querySelectorAll(".buttons button");
+
     // 2.2 Event Listeners
-    joinBtnEl.addEventListener('click', joinGame);
-    buttons.forEach(button => {
-        button.addEventListener('click', submitMove);
+    DOM.joinBtnEl.addEventListener("click", joinGame);
+    DOM.buttons.forEach((button) => {
+        button.addEventListener("click", submitMove);
     });
 
-    // 3. Core Multiplayer Functions
+    // 3. Core Multiplayer Functions (Now defined within DOMContentLoaded)
 
-    /**
-     * Attempts to join or create a game room.
-     */
-    async function joinGame() {
-        if (typeof window.auth === 'undefined' || !window.auth.currentUser) {
-            matchStatusEl.textContent = "Authentication pending. Please wait.";
-            return;
-        }
+    // --- UI/Status Helpers ---
 
-        const inputId = roomIdInputEl.value.trim();
-        if (!inputId) {
-            alertMessage("Please enter a Room ID.");
-            return;
-        }
-
-        gameRoomId = inputId;
-        const currentUserId = window.auth.currentUser.uid;
-        
-        // Define Firestore path: /artifacts/{appId}/public/data/rps_rooms/{roomId}
-        const collectionPath = `artifacts/${window.appId}/public/data/rps_rooms`;
-        roomRef = window.doc(window.db, collectionPath, gameRoomId);
-        
-        joinBtnEl.disabled = true;
-        joinBtnEl.textContent = 'Checking...';
-
-        // Set up the listener first
-        window.onSnapshot(roomRef, (docSnap) => {
-            if (docSnap.exists()) {
-                handleRoomUpdate(docSnap.data(), currentUserId);
-            } else {
-                // If it doesn't exist, create it (Player 1)
-                createRoom(currentUserId);
-            }
-        }, (error) => {
-            console.error("Firestore listen error:", error);
-            alertMessage("Error listening to room. Check console.");
-            joinBtnEl.disabled = false;
-            joinBtnEl.textContent = 'Join / Create Game';
-        });
+    /** Sets the main status message and enables/disables game buttons. */
+    function setGameStatus(message, enableButtons = false) {
+        DOM.matchStatusEl.textContent = message;
+        DOM.buttons.forEach((btn) => (btn.disabled = !enableButtons));
     }
 
-    /**
-     * Creates a new room and sets the current user as Player 1.
-     * @param {string} userId The current user's Firebase UID.
-     */
+    /** Updates the local UI after a successful connection/join. */
+    function updateConnectionUI() {
+        console.log("Updating connection UI for Player", playerNumber);
+
+        DOM.playerRoleEl.textContent = `Player ${playerNumber}`;
+        DOM.joinBtnEl.disabled = true;
+        DOM.joinBtnEl.textContent = "Joined";
+
+        alertMessage(
+            `Successfully joined Room ${gameRoomId} as Player ${playerNumber}.`
+        );
+    }
+    
+    /** Simple alert message display (no alert() allowed). */
+    function alertMessage(message) {
+        DOM.resultMessageEl.textContent = message;
+        // Sets a temporary background color to highlight the message
+        DOM.resultMessageEl.style.backgroundColor = "#e0f7fa"; 
+        
+        setTimeout(() => {
+            DOM.resultMessageEl.style.backgroundColor = "";
+        }, 3000);
+    }
+
+    // --- Initialization & Role Assignment ---
+
+    /** Creates a new room and sets the current user as Player 1. */
     async function createRoom(userId) {
         playerNumber = 1;
         const initialData = {
-            status: 'waiting', // waiting, active, finished
+            status: "waiting",
             player1Id: userId,
             player1Move: null,
             player2Id: null,
             player2Move: null,
-            updatedAt: Date.now()
         };
         try {
             await window.setDoc(roomRef, initialData);
@@ -103,165 +87,177 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Handles state changes from the Firestore snapshot.
-     * @param {object} data The current room data from Firestore.
-     * @param {string} currentUserId The ID of the currently logged-in user.
-     */
-    async function handleRoomUpdate(data, currentUserId) {
-        // Determine player number if not set (i.e., this player is joining)
-        if (!playerNumber) {
-            if (data.player1Id === currentUserId) {
-                playerNumber = 1;
-            } else if (!data.player2Id) {
-                // If player 2 slot is empty, claim it
-                playerNumber = 2;
-                await window.setDoc(roomRef, {
-                    player2Id: currentUserId,
-                    status: 'active',
-                    updatedAt: Date.now()
-                }, { merge: true });
-            } else if (data.player2Id === currentUserId) {
-                playerNumber = 2;
-            } else {
-                alertMessage("Room is full! Try a different ID.");
-                return;
+    /** Claims Player 2 role, or re-establishes identity on refresh. */
+    async function assignPlayerRole(data, curUserId) {
+        if (data.player1Id === curUserId) {
+            playerNumber = 1;
+        
+        // incase player 2 leaves and rejoins, need to reset local variables
+        } else if (data.player2Id === curUserId) {
+            playerNumber = 2;
+        } else if (!data.player2Id) {
+            // Claim Player 2 slot
+            playerNumber = 2;
+            await window.setDoc(
+                roomRef,
+                {
+                    player2Id: curUserId,
+                    status: "active",
+                },
+                { merge: true }
+            );
+        } else {
+            // Room is full, and you're not one of the players
+            alertMessage("Room is full! Try a different ID.");
+            return;
+        }
+
+        // update elements when player 2 joins
+        dispatchGameState(data, null, null);
+        updateConnectionUI();
+    }
+
+    /** Attempts to join or create a game room. */
+    async function joinGame() {
+        if (typeof window.auth === "undefined" || !window.auth.currentUser) {
+            setGameStatus("Authentication pending. Please wait.");
+            return;
+        }
+        const currentUserId = window.auth.currentUser.uid;
+
+        gameRoomId = DOM.roomIdInputEl.value.trim();
+        if (!gameRoomId) {
+            alertMessage("Please enter a Room ID.");
+            return;
+        }
+
+        // Setup Firestore reference
+        const collectionPath = `artifacts/${window.appId}/public/data/rps_rooms`;
+        roomRef = window.doc(window.db, collectionPath, gameRoomId);
+
+        DOM.joinBtnEl.disabled = true;
+        DOM.joinBtnEl.textContent = "Checking...";
+
+        // Set up the listener first
+        window.onSnapshot(
+            roomRef,
+            (docSnap) => {
+                if (docSnap.exists()) {
+                    handleRoomUpdate(docSnap.data(), currentUserId);
+                } else {
+                    createRoom(currentUserId);
+                }
+            },
+            (error) => {
+                console.error("Firestore listen error:", error);
+                alertMessage("Error listening to room. Check console.");
             }
-            updateConnectionUI();
-        }
-
-        // --- Game Flow Logic ---
-        
-        roomDisplayEl.textContent = gameRoomId;
-
-        const isPlayer1 = playerNumber === 1;
-        const myMove = isPlayer1 ? data.player1Move : data.player2Move;
-        const opponentMove = isPlayer1 ? data.player2Move : data.player1Move;
-        
-        playerChoiceTextEl.textContent = myMove ? CHOICES[myMove] : "?";
-        computerChoiceTextEl.textContent = opponentMove ? CHOICES[opponentMove] : "?";
-        
-        let statusText = "";
-        let buttonsDisabled = false;
-
-        if (data.status === 'waiting') {
-            statusText = "Waiting for an opponent...";
-            buttonsDisabled = true;
-        } else if (data.status === 'active') {
-            const opponentId = isPlayer1 ? data.player2Id : data.player1Id;
-
-            if (!opponentId) {
-                 // Should not happen if status is 'active', but safety check
-                 statusText = "Waiting for opponent to connect...";
-                 buttonsDisabled = true;
-            } else if (myMove && opponentMove) {
-                // Both moves are in, resolve the round!
-                resolveRound(myMove, opponentMove);
-                statusText = "Round finished! Click to play again.";
-                buttonsDisabled = false;
-                // Immediately reset moves in DB to prepare for next round
-                resetMoves(); 
-            } else if (myMove && !opponentMove) {
-                statusText = "Move submitted! Waiting for opponent...";
-                buttonsDisabled = true;
-            } else if (!myMove && opponentMove) {
-                statusText = "Opponent moved! Make your choice.";
-                buttonsDisabled = false;
-            } else { // Both are null
-                statusText = "Make your choice for the next round.";
-                buttonsDisabled = false;
-            }
-        }
-        
-        matchStatusEl.textContent = statusText;
-        buttons.forEach(btn => btn.disabled = buttonsDisabled);
+        );
     }
+    
+    // --- Game Logic ---
 
-    /**
-     * Updates the local UI after a successful connection.
-     */
-    function updateConnectionUI() {
-        connectionPanelEl.classList.add('hidden');
-        gameStatusEl.classList.remove('hidden');
-        gameAreaEl.classList.remove('hidden');
-        actionButtonsEl.classList.remove('hidden');
-        resultMessageEl.classList.remove('hidden');
-
-        playerRoleEl.textContent = `Player ${playerNumber}`;
-        joinBtnEl.disabled = true;
-        joinBtnEl.textContent = 'Joined';
-        
-        alertMessage(`Successfully joined Room ${gameRoomId} as Player ${playerNumber}.`);
-    }
-
-    /**
-     * Submits the player's move to the database.
-     * @param {Event} event The click event object.
-     */
-    async function submitMove(event) {
-        const playerChoiceKey = event.currentTarget.dataset.choice;
-        
-        const moveField = playerNumber === 1 ? 'player1Move' : 'player2Move';
-
-        try {
-            await window.setDoc(roomRef, {
-                [moveField]: playerChoiceKey,
-                updatedAt: Date.now()
-            }, { merge: true });
-            
-            buttons.forEach(btn => btn.disabled = true);
-            matchStatusEl.textContent = "Move submitted! Waiting for opponent...";
-
-        } catch (e) {
-            console.error("Error submitting move:", e);
-            alertMessage("Failed to submit move.");
-        }
-    }
-
-    /**
-     * Resolves the winner for the current round and updates the result message.
-     * This logic is based on the user's latest 'script.js' logic.
-     * @param {string} playerChoiceKey The current player's choice key.
-     * @param {string} opponentChoiceKey The opponent's choice key.
-     */
+    /** Resolves the winner for the current round and updates the result message. */
     function resolveRound(playerChoiceKey, opponentChoiceKey) {
         if (playerChoiceKey === opponentChoiceKey) {
-            resultMessageEl.textContent = "It's a tie!";
-        } else if ((playerChoiceKey === 'rock' && opponentChoiceKey === 'scissors') ||
-                   (playerChoiceKey === 'paper' && opponentChoiceKey === 'rock') ||
-                   (playerChoiceKey === 'scissors' && opponentChoiceKey === 'paper')) {
-            resultMessageEl.textContent = "You win the round!";
+            DOM.resultMessageEl.textContent = "It's a tie!";
+            DOM.resultMessageEl.style.backgroundColor = "#fff3cd"; // Light yellow for tie
+        } else if (
+            (playerChoiceKey === "rock" && opponentChoiceKey === "scissors") ||
+            (playerChoiceKey === "paper" && opponentChoiceKey === "rock") ||
+            (playerChoiceKey === "scissors" && opponentChoiceKey === "paper")
+        ) {
+            DOM.resultMessageEl.textContent = "You win the round!";
+            DOM.resultMessageEl.style.backgroundColor = "#d4edda"; // Light green for win
         } else {
-            resultMessageEl.textContent = "You lose the round!";
+            DOM.resultMessageEl.textContent = "You lose the round!";
+            DOM.resultMessageEl.style.backgroundColor = "#f8d7da"; // Light red for loss
         }
     }
 
-    /**
-     * Resets the moves in the database for the next round.
-     */
+    /** Resets the moves in the database for the next round. */
     async function resetMoves() {
         // Only Player 1 should handle the heavy lifting (database writes) to prevent conflicts
         if (playerNumber === 1) {
-             try {
+            try {
                 await window.setDoc(roomRef, {
                     player1Move: null,
-                    player2Move: null,
-                    updatedAt: Date.now()
+                    player2Move: null
                 }, { merge: true });
             } catch (e) {
                 console.error("Error resetting moves:", e);
             }
         }
     }
-    
-    /**
-     * Simple alert message display (no alert() allowed).
-     */
-    function alertMessage(message) {
-        resultMessageEl.textContent = message;
-        resultMessageEl.style.backgroundColor = '#ffcdd2'; // Light red for alerts
-        setTimeout(() => {
-            resultMessageEl.style.backgroundColor = '#e0f7fa';
-        }, 3000);
+
+    /** Submits the player's move to the database. */
+    async function submitMove(event) {
+        const playerChoiceKey = event.currentTarget.dataset.choice;
+        const moveField = playerNumber === 1 ? "player1Move" : "player2Move";
+
+        try {
+            await window.setDoc(
+                roomRef,
+                { [moveField]: playerChoiceKey },
+                { merge: true }
+            );
+        } catch (e) {
+            console.error("Error submitting move:", e);
+            alertMessage("Failed to submit move.");
+        }
+    }
+
+    /** Dispatches UI updates based on the current game state. */
+    function dispatchGameState(data, myMove, opponentMove) {
+        DOM.roomDisplayEl.textContent = gameRoomId;
+
+        if (data.status === "waiting") {
+            setGameStatus("Waiting for an opponent...", false);
+            return;
+        }
+        
+        // --- Status: Active ---
+        
+        if (myMove && opponentMove) {
+            // State: Both moves are in
+            resolveRound(myMove, opponentMove);
+            setGameStatus("Round finished! Click to play again.", false); // Buttons are disabled until reset
+            
+            // Only Player 1 initiates the database cleanup (resetMoves)
+            if (playerNumber === 1) {
+                 resetMoves();
+            }
+        } else if (myMove && !opponentMove) {
+            // State: Player moved, waiting for opponent. Player's buttons are disabled.
+            setGameStatus("Move submitted! Waiting for opponent's choice.", false);
+        } else if (!myMove && opponentMove) {
+            // State: Opponent moved, awaiting player. Player's buttons are ENABLED.
+            setGameStatus("Opponent has submitted a choice. Make yours!", true);
+        } else {
+            // State: Both null. Both players are ENABLED.
+            setGameStatus("Make your choice for the next round.", true);
+        }
+    }
+
+
+    /** Handles state changes from the Firestore snapshot. (Main Loop) */
+    async function handleRoomUpdate(data, currentUserId) {
+        // Step 1: Initialize Role if not set (first time join or page refresh)
+        if (!playerNumber) {
+            await assignPlayerRole(data, currentUserId);
+            // Re-run the function once role is assigned to display the correct state
+            if (!playerNumber) return; // Exit if room was full
+        }
+
+        const isPlayer1 = playerNumber === 1;
+        const myMove = isPlayer1 ? data.player1Move : data.player2Move;
+        const opponentMove = isPlayer1 ? data.player2Move : data.player1Move;
+
+        // Step 2: Update Choices UI
+        DOM.playerChoiceTextEl.textContent = myMove ? myMove : "?";
+        DOM.opponentChoiceTextEl.textContent = opponentMove ? opponentMove : "?";
+
+        // Step 3: Dispatch game state actions
+        dispatchGameState(data, myMove, opponentMove);
     }
 });

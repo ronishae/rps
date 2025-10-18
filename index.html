@@ -19,14 +19,14 @@
     </div>
 
     <!-- Game Status and Player Info -->
-    <div id="game-status" class="status-box hidden">
+    <div id="game-status" class="status-box">
         <p>Room: <strong id="room-display">...</strong></p>
         <p>You are: <strong id="player-role">...</strong></p>
-        <p id="match-status">Waiting for opponent to connect...</p>
+        <p id="match-status">No room joined...</p>
     </div>
 
     <!-- Choices Display -->
-    <div class="choices-display hidden" id="game-area">
+    <div class="choices-display" id="game-area">
         <div class="player-move">
             <div class="move-label">Your Move:</div>
             <span id="player-choice-text">?</span>
@@ -39,14 +39,14 @@
     </div>
     
     <!-- Action Buttons -->
-    <div class="buttons hidden" id="action-buttons">
-        <button data-choice="rock" class="rock">Rock</button>
-        <button data-choice="paper" class="paper">Paper</button>
-        <button data-choice="scissors" class="scissors">Scissors</button>
+    <div class="buttons" id="action-buttons">
+        <button data-choice="rock" class="rock" disabled>Rock</button>
+        <button data-choice="paper" class="paper" disabled>Paper</button>
+        <button data-choice="scissors" class="scissors" disabled>Scissors</button>
     </div>
 
     <!-- Result Message -->
-    <div id="result-message" class="hidden">Click a button to play a round!</div>
+    <div id="result-message">Connect to a room to play!</div>
 </div>
 
 <!-- Firebase Imports and Initialization -->
