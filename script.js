@@ -1,6 +1,12 @@
 // --- MULTIPLAYER GAME LOGIC ---
 
 // 1. Initial State and Constants
+const EMOJI_MAP = {
+    'rock': '🪨',
+    'paper': '📄',
+    'scissors': '✂️'
+};
+
 // Game State Variables
 let gameRoomId = null;
 let playerNumber = null; // 1 or 2
@@ -168,10 +174,10 @@ document.addEventListener("DOMContentLoaded", () => {
             (playerChoiceKey === "paper" && opponentChoiceKey === "rock") ||
             (playerChoiceKey === "scissors" && opponentChoiceKey === "paper")
         ) {
-            DOM.resultMessageEl.textContent = "You win the round!";
+            DOM.resultMessageEl.textContent = "You won the round!";
             DOM.resultMessageEl.style.backgroundColor = "#d4edda"; // Light green for win
         } else {
-            DOM.resultMessageEl.textContent = "You lose the round!";
+            DOM.resultMessageEl.textContent = "You lost the round!";
             DOM.resultMessageEl.style.backgroundColor = "#f8d7da"; // Light red for loss
         }
     }
@@ -209,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /** Dispatches UI updates based on the current game state. */
-    function dispatchGameState(data, myMove, opponentMove) {
+    async function dispatchGameState(data, myMove, opponentMove) {
         DOM.roomDisplayEl.textContent = gameRoomId;
 
         if (data.status === "waiting") {
@@ -226,7 +232,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (playerNumber === 1) {
                 resetMoves();
             }
-            delay(3000);
+            // wait to let the players see the results
+            await delay(3000);
+
             DOM.playerChoiceTextEl.textContent = "?";
             DOM.opponentChoiceTextEl.textContent = "?";
             setGameStatus("Make your choice for the next round.", true)
@@ -234,6 +242,9 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (myMove && !opponentMove) {
             // State: Player moved, waiting for opponent. Player's buttons are disabled.
             setGameStatus("Move submitted! Waiting for opponent's choice.", false);
+
+            // show only my move but not the opponent's
+            DOM.playerChoiceTextEl.textContent = EMOJI_MAP[myMove];
         } else if (!myMove && opponentMove) {
             // State: Opponent moved, awaiting player. Player's buttons are ENABLED.
             setGameStatus("Opponent has submitted a choice. Make yours!", true);
@@ -269,8 +280,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Step 2: Update Choices UI
         if (myMove && opponentMove) {
-            DOM.playerChoiceTextEl.textContent = myMove;
-            DOM.opponentChoiceTextEl.textContent = opponentMove;   
+            DOM.playerChoiceTextEl.textContent = EMOJI_MAP[myMove];
+            DOM.opponentChoiceTextEl.textContent = EMOJI_MAP[opponentMove];   
         }
 
         // Step 3: Dispatch game state actions
