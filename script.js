@@ -9,6 +9,10 @@ let roomRef = null; // Firestore document reference
 // 2. DOM Elements (References will be set inside DOMContentLoaded)
 let DOM = {};
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // 2.1 UI Element Initialization (Moved to a single DOM object for clean access)
     DOM.connectionPanelEl = document.getElementById("connection-panel");
@@ -33,8 +37,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 3. Core Multiplayer Functions (Now defined within DOMContentLoaded)
 
-    // --- UI/Status Helpers ---
-
     /** Sets the main status message and enables/disables game buttons. */
     function setGameStatus(message, enableButtons = false) {
         DOM.matchStatusEl.textContent = message;
@@ -52,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
         alertMessage(
             `Successfully joined Room ${gameRoomId} as Player ${playerNumber}.`
         );
+        DOM.buttons.forEach((btn) => (btn.disabled = false));
     }
     
     /** Simple alert message display (no alert() allowed). */
@@ -112,8 +115,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // update elements when player 2 joins
-        dispatchGameState(data, null, null);
         updateConnectionUI();
     }
 
@@ -212,21 +213,24 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.roomDisplayEl.textContent = gameRoomId;
 
         if (data.status === "waiting") {
+            console.log('waiting moment')
             setGameStatus("Waiting for an opponent...", false);
             return;
-        }
-        
-        // --- Status: Active ---
+        } 
         
         if (myMove && opponentMove) {
-            // State: Both moves are in
             resolveRound(myMove, opponentMove);
             setGameStatus("Round finished! Click to play again.", false); // Buttons are disabled until reset
             
             // Only Player 1 initiates the database cleanup (resetMoves)
             if (playerNumber === 1) {
-                 resetMoves();
+                resetMoves();
             }
+            delay(3000);
+            DOM.playerChoiceTextEl.textContent = "?";
+            DOM.opponentChoiceTextEl.textContent = "?";
+            setGameStatus("Make your choice for the next round.", true)
+
         } else if (myMove && !opponentMove) {
             // State: Player moved, waiting for opponent. Player's buttons are disabled.
             setGameStatus("Move submitted! Waiting for opponent's choice.", false);
@@ -244,9 +248,19 @@ document.addEventListener("DOMContentLoaded", () => {
     async function handleRoomUpdate(data, currentUserId) {
         // Step 1: Initialize Role if not set (first time join or page refresh)
         if (!playerNumber) {
+            console.log('assigning role');
+            
             await assignPlayerRole(data, currentUserId);
-            // Re-run the function once role is assigned to display the correct state
-            if (!playerNumber) return; // Exit if room was full
+            
+            // If the role was JUST assigned, we exit this outdated function instance.
+            // The listener will immediately re-call handleRoomUpdate with the fresh data.
+            if (playerNumber) {
+                console.log('Role assigned. Exiting current update cycle to await fresh data.');
+                return;
+            }
+            
+            // If the room was full and role still null, exit.
+            if (!playerNumber) return; 
         }
 
         const isPlayer1 = playerNumber === 1;
@@ -254,8 +268,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const opponentMove = isPlayer1 ? data.player2Move : data.player1Move;
 
         // Step 2: Update Choices UI
-        DOM.playerChoiceTextEl.textContent = myMove ? myMove : "?";
-        DOM.opponentChoiceTextEl.textContent = opponentMove ? opponentMove : "?";
+        if (myMove && opponentMove) {
+            DOM.playerChoiceTextEl.textContent = myMove;
+            DOM.opponentChoiceTextEl.textContent = opponentMove;   
+        }
 
         // Step 3: Dispatch game state actions
         dispatchGameState(data, myMove, opponentMove);
